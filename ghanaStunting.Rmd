@@ -1,0 +1,105 @@
+---
+title: "Stunting in Ghana"
+author: "Laura Hughes"
+date: "March 17, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(ggplot2)
+library(llamar)
+
+# import the data
+source('~/GitHub/Ghana_PBS/importPBS.R')
+
+sample_size = data.frame(description = 'full dataset', n = nrow(ch))
+```
+
+# Trying to calculate stunting from the 2014 Ghana DHS and the 2015 FTF PBS
+
+## Cleaning up the dataset to eliminate uneligible children
+
+```{r cleanup}
+# remove those in baseline
+ch = ch %>% filter(baseline == 1)
+
+sample_size = bind_rows(sample_size, data.frame(description = 'selecting only those in baseline', n = nrow(ch)))
+
+# remove those whose height wasn't measured
+ch = ch %>% filter(measured == 1)
+
+sample_size = bind_rows(sample_size, data.frame(description = 'parents agreed to have the child measured', n = nrow(ch)))
+
+# checking height, age exist
+ch = ch %>% filter(!is.na(height), 
+                   !is.na(age_months))
+
+sample_size = bind_rows(sample_size, data.frame(description = 'removing kids with no height/age in dataset', n = nrow(ch)))
+
+# filtering only kids whose age is less than 60 months
+ch = ch %>% filter(age_months < 60)
+
+sample_size = bind_rows(sample_size, data.frame(description = 'age in months is less than 60', n = nrow(ch)))
+
+# filtering by age flag
+ch = ch %>% filter(under5 == 1)
+
+sample_size = bind_rows(sample_size, data.frame(description = 'age flag variable is true', n = nrow(ch)))
+
+# filtering only kids who slept in house last night
+ch = ch %>% filter(dejure == 1)
+
+sample_size = bind_rows(sample_size, data.frame(description = 'de jure kids (ones who slept in house last night)', n = nrow(ch)))
+
+
+# filtering only kids w/ odema
+ch = ch %>% filter(odema == 2)
+
+sample_size = bind_rows(sample_size, data.frame(description = 'no odema', n = nrow(ch)))
+
+```
+
+
+```{r stunting}
+# calculate height-for-age
+ch = ch %>% mutate(height_age = height/age_months)
+
+ggplot(ch, aes(x = height, y = age_months)) + 
+  geom_point(size = 3, alpha = 0.3) +
+  theme_xygrid()
+
+ggplot(ch, aes(x = height_age)) + geom_histogram()
+```
+
+
+## Final sample size
+```{r sample_size}
+knitr::kable(sample_size)
+
+```
+
+## What is up with the ages?
+```{r ages}
+
+ggplot(ch_raw %>% filter(q8_2 == 1), aes(x = q8_4, fill = q8_4 < 60)) +
+  geom_histogram(binwidth = 1) +
+  xlab('age in months') +
+  ggtitle('flag q8_2 ("Is child less than 60 months") is 1')
+
+
+ggplot(ch_raw %>% filter(q8_2 == 1), aes(x = q8_4, fill = q8_4 < 60)) +
+  geom_histogram(binwidth = 1) +
+  xlab('age in months') +
+  ggtitle('flag q8_2 ("Is child less than 60 months") is 1') +
+  xlim(c(0, 70))
+
+ggplot(ch_raw %>% filter(q8_2 != 1), aes(x = q8_4, fill = q8_4 < 60)) +
+  geom_histogram(binwidth = 1) +
+  xlab('age in months') +
+  ggtitle('flag q8_2 ("Is child less than 60 months") is not 1')
+
+```
+
