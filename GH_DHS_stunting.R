@@ -65,11 +65,11 @@ dhs = dhs %>% factorize(dhs, 'v024', 'region') %>% factorize(dhs, 'b4', 'sex')
 
 attr(dhs$stuntingZ, 'labels')
 
-# so 9996, 99977, 9998 are all tagged as being invalid.
+# so 9996, 9997, 9998 are all tagged as being invalid.
 
 dhs %>% 
-  filter(!is.na(stuntingZ)) %>% 
-  group_by(stuntingZ %in% c(9996, 9997, 9998)) %>% 
+  filter(!is.na(hw70)) %>% 
+  group_by(hw70 %in% c(9996, 9997, 9998)) %>% 
   summarise(n = n()) %>% 
   ungroup() %>% 
   mutate(pct = n / sum(n))
