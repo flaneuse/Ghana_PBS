@@ -70,6 +70,47 @@ ggplot(ch, aes(y = height, x = age_months)) +
   ylim(c(0, max(stunted$height)*1.25)) +
   theme_xygrid()
 
+# Including just the "baseline" PBS data:
+ggplot(ch %>% filter(baseline == 1), aes(y = height, x = age_months)) +
+  geom_vline(xintercept = 6, colour = grey75K, size = 0.5) +
+  geom_point(size = 3, alpha = 0.25, colour = ftfOrange) +
+  geom_point(size = 3, alpha = 0.25, colour = ftfBlue,
+             data = dhs) +
+  annotate(geom = 'text', x = 60, y = 20, label = 'PBS (unfiltered baseline) data',
+           hjust = 1,
+           family = 'Lato Light', colour = ftfOrange, size = 6) +
+  annotate(geom = 'text', x = 60, y = 10, label = 'Ghana DHS data (all country)', 
+           hjust = 1,
+           family = 'Lato Light', colour = ftfBlue, size = 6) +
+  annotate(geom = 'text', x = 6.5, y = 130, label = '6 months', 
+           hjust = 0,
+           family = 'Lato Light', colour = grey75K, size = 4) +
+  ggtitle('The breadth of heights-for-ages in children is much wider in the PBS') +
+  xlim(c(0, 60)) +
+  ylim(c(0, max(stunted$height)*1.25)) +
+  theme_xygrid()
+
+
+# coloring by baseline data:
+ggplot(ch, aes(y = height, x = age_months)) +
+  geom_vline(xintercept = 6, colour = grey75K, size = 0.5) +
+  geom_point(aes(colour = factor(baseline), alpha = factor(baseline)), size = 3) +
+  annotate(geom = 'text', x = 60, y = 20, label = 'PBS (unfiltered baseline) data',
+           hjust = 1,
+           family = 'Lato Light', colour = ftfOrange, size = 6) +
+  annotate(geom = 'text', x = 60, y = 10, label = 'PBS (unfiltered added in interim) data',
+           hjust = 1,
+           family = 'Lato Light', colour = ftfGreen, size = 6) +
+  annotate(geom = 'text', x = 6.5, y = 130, label = '6 months', 
+           hjust = 0,
+           family = 'Lato Light', colour = grey75K, size = 4) +
+  scale_color_manual(values = c(ftfGreen, ftfOrange, grey60K)) +
+  scale_alpha_manual(values = c(0.35, 0.2, 0.35)) +
+  ggtitle('The breadth of heights-for-ages in children is much wider in the PBS') +
+  xlim(c(0, 60)) +
+  ylim(c(0, max(stunted$height)*1.25)) +
+  theme_xygrid(legend.position = 'top')
+
 
 # Including implausible values
 ggplot(ch, aes(y = height, x = age_months)) +
