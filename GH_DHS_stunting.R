@@ -1,7 +1,7 @@
 
 # Import DHS stunting data for comparison to FTF PBS ----------------------
 # Laura Hughes, lhughes@usaid.gov, 28 March 2017
-# Data is from the 2014 Ghana DHS: http://dhsprogram.com/what-we-do/survey/survey-display-437.cfm
+# Data is from the 2014 Ghana DHS: http://kidsprogram.com/what-we-do/survey/survey-display-437.cfm
 
 
 # Setup -------------------------------------------------------------------
@@ -10,13 +10,18 @@ library(haven)
 library(dplyr)
 library(ggplot2)
 library(llamar)
+library(geocenter)
 
-baseDir = '~/Documents/USAID/Ghana/rawdata/'
-dhs = read_stata(paste0(baseDir,"GH_2014_DHS/ghkr72dt/GHKR72FL.DTA"))
 
+baseDir = '~/Documents/USAID/Ghana/rawdata/GH_2008_DHS/'
+kids = read_stata(paste0(baseDir,"GH_2014_DHS/ghkr72dt/GHKR72FL.DTA"))
+kids = read_stata(paste0(baseDir,"GH_2008_DHS/ghkr5adt/GHKR5AFL.DTA"))
+geo = geocenter::read_shp(baseDir = paste0(baseDir, "GH_2014_DHS/"), folderName = "ghge71fl", layerName = "GHGE71FL")
+geo = geocenter::read_shp(baseDir = paste0(baseDir, "GH_2008_DHS/"), folderName = "ghge5afl", layerName = "GHGE5AFL")
+geo = geo@data
 
 # reminder: relevent vars: ------------------------------------------------
-# • v024 is the region (1-10); FTF is in 7-10 (Brong Ahafo, Northern, Upper East, Upper West)
+# • v024 is the region (1-10); FTF is in 7-10 (Brong Ahafo, Northern, Upper East, Upper West) & lat >= 8 [cuts off some of the Brong Ahafo region]
 # • hw70 (stuntingZ) is the height/age std dev from new WHO
 # • v022 is the strata
 # • v005 is the woman's sampling weight
@@ -24,7 +29,7 @@ dhs = read_stata(paste0(baseDir,"GH_2014_DHS/ghkr72dt/GHKR72FL.DTA"))
 
 
 # REMINDER: stunting (hw70), wasting (hw71), underweight (hw72) filters ----------------------------------------------
-# "Flagged" cases defined in http://dhsprogram.com/pubs/pdf/DHSG1/Guide_to_DHS_Statistics_29Oct2012_DHSG1.pdf
+# "Flagged" cases defined in http://kidsprogram.com/pubs/pdf/DHSG1/Guide_to_DHS_Statistics_29Oct2012_DHSG1.pdf
   # Children with height for age z-scores below –6 SD or above +6 SD, with weight for age z-scores below –6 SD or above +6
   # SD, or with weight for height z-scores below –4 SD or above +6 SD are flagged as having invalid
   # data. Also invalid are combinations of z-scores where height for age is less than –3.09 SD and
@@ -46,8 +51,11 @@ dhs = read_stata(paste0(baseDir,"GH_2014_DHS/ghkr72dt/GHKR72FL.DTA"))
 
 # relabel stuff. ----------------------------------------------------------
 ftfDist = 7:10
+lat_thresh = 8 # only include hh with latitudes above the 8 North parallel, since that's how the ZOI is defined.
 
-dhs = dhs %>% 
+kids = left_join(kids, geo, by = c("v001" = "DHSCLUST"))
+
+kids = kids %>% 
   mutate(psu = v021,
          strata = v022,
          sampleWeight = v005 / 1e6,
@@ -55,19 +63,23 @@ dhs = dhs %>%
          weight = hw2/10,
          height = hw3/10,
          stuntingZ = hw70/100,
-         wastingZ = hw71/100,
-         underwtZ = hw72/100,
-         ftfFlag = ifelse(v024 %in% ftfDist, 1, 0))
+         underwtZ = hw71/100,
+         wastingZ = hw72/100,
+         
+         stunted = as.numeric(stuntingZ < -2), 
+         wasted = as.numeric(wastingZ < -2), 
+         underwt = as.numeric(underwtZ < -2),
+         ftfFlag = ifelse(v024 %in% ftfDist & LATNUM >= lat_thresh, 1, 0))
 
-dhs = dhs %>% factorize(dhs, 'v024', 'region') %>% factorize(dhs, 'b4', 'sex')
+kids = kids %>% factorize(kids, 'v024', 'region') %>% factorize(kids, 'b4', 'sex')
 
 # check how many DHS obs aren’t valid -------------------------------------
 
-attr(dhs$stuntingZ, 'labels')
+attr(kids$stuntingZ, 'labels')
 
 # so 9996, 9997, 9998 are all tagged as being invalid.
 
-dhs %>% 
+kids %>% 
   filter(!is.na(hw70)) %>% 
   group_by(hw70 %in% c(9996, 9997, 9998)) %>% 
   summarise(n = n()) %>% 
@@ -80,7 +92,7 @@ dhs %>%
 
 
 # Filter out PBS regions and pull out stunting z-scores -------------------
-stunted = dhs %>% 
+stunted = kids %>% 
   filter(!is.na(hw70), # height/age measured
          hw70 < 9990, # zscore within bounds
          hw1 < 60, # age < 60 mo.
@@ -92,12 +104,13 @@ stunted = dhs %>%
   select(caseid, midx, v024, region, ftfFlag,
          v001, v002, v003, strata, psu, sampleWeight,
          stuntingZ, wastingZ, underwtZ, 
+         stunted, wasted, underwt,
          b4, sex,
          hw1, age_months, hw2, weight, hw3, height)
 
 
 
-wasted = dhs %>% 
+wasted = kids %>% 
   filter(!is.na(hw71), # height/age measured
          hw71 < 9990, # zscore within bounds
          hw1 < 60, # age < 60 mo.
@@ -109,11 +122,12 @@ wasted = dhs %>%
   select(caseid, midx, v024, region, ftfFlag,
          v001, v002, v003, strata, psu, sampleWeight,
          stuntingZ, wastingZ, underwtZ, 
+         stunted, wasted, underwt,
          b4, sex,
          hw1, age_months, hw2, weight, hw3, height)
 
 
-underwt = dhs %>% 
+underwt = kids %>% 
   filter(!is.na(hw72), # height/age measured
          hw72 < 9990, # zscore within bounds
          hw1 < 60, # age < 60 mo.
@@ -123,11 +137,27 @@ underwt = dhs %>%
   select(caseid, midx, v024, region, ftfFlag,
          v001, v002, v003, strata, psu, sampleWeight,
          stuntingZ, wastingZ, underwtZ, 
+         stunted, wasted, underwt,
          b4, sex,
          hw1, age_months, hw2, weight, hw3, height)
 
 
+# calculate stunting ------------------------------------------------------
+# expected value: 2014-- 18.8%, N = 2,895; 2008: 28.0%
 
+calcPtEst(df = stunted, var = 'stunted', use_weights = F, psu_var = 'psu', strata_var = 'strata', weight_var = 'sampleWeight')
+calcPtEst(df = stunted, var = 'stunted', by_var = 'ftfFlag',
+          use_weights = TRUE, psu_var = 'psu', strata_var = 'strata', weight_var = 'sampleWeight')
+
+# calculate wasted --------------------------------------------------------
+# expected value: 2014-- 4.7%; 2008: 8.5%
+calcPtEst(df = wasted, var = 'wasted', use_weights = T, psu_var = 'psu', strata_var = 'strata', weight_var = 'sampleWeight')
+calcPtEst(df = wasted, var = 'wasted', by_var = 'ftfFlag')
+
+# calculate udnerweight --------------------------------------------------------
+# expected value: 2014-- 4.7%; 2008: 8.5%
+calcPtEst(df = underwt, var = 'underwt', use_weights = T, psu_var = 'psu', strata_var = 'strata', weight_var = 'sampleWeight')
+calcPtEst(df = underwt, var = 'underwt', by_var = 'ftfFlag')
 # plots -------------------------------------------------------------------
 
 # By region in ZOI
